@@ -36,7 +36,7 @@ jobs:
                 --color "$(jq -r .color <<<"$label")" \
                 --description "$(jq -r .description <<<"$label")"
             done
-            for existing in $(gh label list --repo "$OWNER/$repo" --limit 200 --json name --jq '.[].name'); do
+            gh label list --repo "$OWNER/$repo" --limit 200 --json name --jq '.[].name' | while read -r existing; do
               grep -qx "$existing" <<<"$wanted" || gh label delete "$existing" --repo "$OWNER/$repo" --yes
             done
           done
