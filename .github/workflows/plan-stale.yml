@@ -1,0 +1,46 @@
+# Reusable: after a push to development that changes a specification or the stack
+# document, every open plan whose unticked tasks cite a changed document is labelled
+# blocked with a comment naming the tasks and the pull request. It never re-plans and
+# never unblocks: the developer re-plans when a batch of changes is done. The caller runs
+# on push with a paths filter and passes `secrets: inherit`.
+name: plan-stale
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  stale:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
+        with:
+          app-id: ${{ vars.PHAETHUSA_APP_ID }}
+          private-key: ${{ secrets.PHAETHUSA_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      - run: go install github.com/heliosbbs/heliostools/cmd/work@main
+      - name: Block the plans the change overtook
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BEFORE" "$AFTER" -- 'docs/spec/*.md' docs/stack.md)
+          [ -n "$changed" ] || { echo "no specification changed"; exit 0; }
+          pr=$(gh api "repos/$GH_REPO/commits/$AFTER/pulls" --jq '.[0].number // empty')
+          ref=${pr:+"#$pr"}
+          ref=${ref:-"commit ${AFTER:0:7}"}
+          echo "changed: $changed"
+          # shellcheck disable=SC2086
+          work stale --apply --ref "$ref" $changed
