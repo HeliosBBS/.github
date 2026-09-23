@@ -8,4 +8,5 @@ Closes #
 - [ ] `make check` is green on all three targets
 - [ ] Verified through the real surface, not unit tests alone
 - [ ] Any sysop-facing setting is exposed in both configuration tools
+- [ ] Any new dependency has its cost-benefit written here: what it saves, what it exposes
 - [ ] Nothing here names an exploit path; anything security-sensitive is in an advisory
