@@ -42,7 +42,37 @@ jobs:
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
           go install golang.org/x/vuln/cmd/govulncheck@latest
-      - run: make check RACE=-race
+      # Lazarus only where a repository holds a Lazarus project: the install is large and
+      # most repositories have none.
+      - name: Install Lazarus
+        if: hashFiles('**/*.lpi') != ''
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lazarus
+      - run: make check RACE=-race COVER=-coverprofile=coverage.out
+      # Coverage is a report, never a gate: a total and a per-package table in the job
+      # summary, and the profile with its HTML rendering as an artifact.
+      - name: Coverage report
+        if: always()
+        run: |
+          [ -f coverage.out ] || { echo "No coverage profile: the tests did not run." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          go tool cover -html=coverage.out -o coverage.html
+          {
+            echo "## Coverage: $(go tool cover -func=coverage.out | awk '$1 == "total:" { print $NF }')"
+            echo
+            echo "A report, never a gate."
+            echo
+            echo "| Package | Statements | Covered |"
+            echo "|---|---|---|"
+            awk -v m="$(go list -m)/" 'NR > 1 { split($1, f, ":"); p = f[1]; sub(/\/[^\/]*$/, "", p); if (index(p, m) == 1) p = substr(p, length(m) + 1); n[p] += $2; if ($3 > 0) c[p] += $2 } END { for (p in n) printf "| %s | %d | %.1f%% |\n", p, n[p], 100 * c[p] / n[p] }' coverage.out | sort
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: coverage-${{ matrix.os }}
+          path: |
+            coverage.out
+            coverage.html
+          if-no-files-found: ignore
+          retention-days: 14
 
   windows:
     runs-on: windows-2025
@@ -62,5 +92,35 @@ jobs:
           choco install make --yes --no-progress
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
           go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Install Lazarus
+        if: hashFiles('**/*.lpi') != ''
+        shell: bash
+        run: |
+          choco install lazarus --yes --no-progress
+          echo "C:\lazarus" >> "$GITHUB_PATH"
       - shell: bash
-        run: make check RACE=-race
+        run: make check RACE=-race COVER=-coverprofile=coverage.out
+      - name: Coverage report
+        if: always()
+        shell: bash
+        run: |
+          [ -f coverage.out ] || { echo "No coverage profile: the tests did not run." >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+          go tool cover -html=coverage.out -o coverage.html
+          {
+            echo "## Coverage: $(go tool cover -func=coverage.out | awk '$1 == "total:" { print $NF }')"
+            echo
+            echo "A report, never a gate."
+            echo
+            echo "| Package | Statements | Covered |"
+            echo "|---|---|---|"
+            awk -v m="$(go list -m)/" 'NR > 1 { split($1, f, ":"); p = f[1]; sub(/\/[^\/]*$/, "", p); if (index(p, m) == 1) p = substr(p, length(m) + 1); n[p] += $2; if ($3 > 0) c[p] += $2 } END { for (p in n) printf "| %s | %d | %.1f%% |\n", p, n[p], 100 * c[p] / n[p] }' coverage.out | sort
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: coverage-windows
+          path: |
+            coverage.out
+            coverage.html
+          if-no-files-found: ignore
+          retention-days: 14
