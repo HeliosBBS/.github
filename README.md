@@ -13,6 +13,7 @@ called by each repository's thin CI, so a rule is written once.
 | `.github/workflows/check.yml` | reusable: `make check` on Linux amd64, Linux arm64 and Windows |
 | `.github/workflows/scorecard.yml` | reusable: OpenSSF Scorecard |
 | `.github/workflows/release.yml` | reusable: build the three targets, attest provenance, attach an SBOM |
+| `.github/workflows/add-to-project.yml` | reusable: put a new issue or PR on the estate board |
 | `.github/workflows/estate.yml` | the estate scheduler |
 
 Each repository's `CONSTITUTION.md` and the shared constitution in the `HeliosSkills` plugin are
