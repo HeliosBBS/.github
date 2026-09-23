@@ -1,4 +1,5 @@
-# The estate scheduler. Jobs that need the work tooling join here when it exists.
+# The estate scheduler: the jobs that keep every repository's issues and branches
+# honest, run once a day as the organisation's App.
 name: Estate
 
 on:
@@ -33,3 +34,55 @@ jobs:
             done
           done
           exit $drift
+
+  # Every open issue keeps the work-order shape, and a claim nobody has touched
+  # for three days is released so the loop can pick the item up again.
+  issues:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
+        with:
+          app-id: ${{ vars.PHAETHUSA_APP_ID }}
+          private-key: ${{ secrets.PHAETHUSA_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      - run: go install github.com/heliosbbs/heliostools/cmd/work@main
+      - name: Lint every repository's issues and release stale claims
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -uo pipefail
+          faults=0
+          for repo in $(gh repo list "$OWNER" --limit 100 --json name --jq '.[].name'); do
+            echo "== $OWNER/$repo"
+            gh repo clone "$OWNER/$repo" "$repo" -- --quiet --depth 1 2>/dev/null || { echo "empty or unreadable, skipped"; continue; }
+            ( cd "$repo" && work lint ) || faults=1
+            ( cd "$repo" && work unclaim-stale 3 )
+          done
+          exit $faults
+
+  # Nightly check on development catches flaky tests and newly published
+  # vulnerabilities that no push would have surfaced.
+  nightly:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
+        with:
+          app-id: ${{ vars.PHAETHUSA_APP_ID }}
+          private-key: ${{ secrets.PHAETHUSA_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Dispatch CI on every development branch
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          for repo in $(gh repo list "$OWNER" --limit 100 --json name --jq '.[].name'); do
+            gh api "repos/$OWNER/$repo/branches/development" >/dev/null 2>&1 || continue
+            gh workflow run ci.yml --repo "$OWNER/$repo" --ref development && echo "dispatched $repo"
+          done
