@@ -10,6 +10,13 @@ on:
       golangci-lint-version:
         type: string
         default: v2.12.2
+      # The Lazarus release the developer runs; Windows takes the release installer,
+      # Linux builds lazbuild and the LCL from the same release's source, since the
+      # distribution packages lag by a major version. Every Lazarus 4 release pairs with
+      # Free Pascal 3.2.2.
+      lazarus-version:
+        type: string
+        default: "4.8"
 
 permissions: {}
 
@@ -43,10 +50,27 @@ jobs:
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
           go install golang.org/x/vuln/cmd/govulncheck@latest
       # Lazarus only where a repository holds a Lazarus project: the install is large and
-      # most repositories have none.
-      - name: Install Lazarus
+      # most repositories have none. The built tree is cached per release and architecture.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: hashFiles('**/*.lpi') != ''
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends lazarus
+        id: lazarus
+        with:
+          path: ~/lazarus
+          key: lazarus-${{ inputs.lazarus-version }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Install Free Pascal and GTK
+        if: hashFiles('**/*.lpi') != ''
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fpc libgtk2.0-dev
+      - name: Build Lazarus ${{ inputs.lazarus-version }}
+        if: hashFiles('**/*.lpi') != '' && steps.lazarus.outputs.cache-hit != 'true'
+        run: |
+          tag="lazarus_${LAZARUS_VERSION//./_}"
+          mkdir -p ~/lazarus
+          curl -sSL "https://gitlab.com/freepascal.org/lazarus/lazarus/-/archive/$tag/lazarus-$tag.tar.gz" | tar xz -C ~/lazarus --strip-components=1
+          make -C ~/lazarus -s lazbuild lcl LCL_PLATFORM=gtk2
+        env:
+          LAZARUS_VERSION: ${{ inputs.lazarus-version }}
+      - if: hashFiles('**/*.lpi') != ''
+        run: echo "$HOME/lazarus" >> "$GITHUB_PATH"
       - run: make check RACE=-race COVER=-coverprofile=coverage.out
       # Coverage is a report, never a gate: a total and a per-package table in the job
       # summary, and the profile with its HTML rendering as an artifact.
@@ -92,12 +116,15 @@ jobs:
           choco install make --yes --no-progress
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
           go install golang.org/x/vuln/cmd/govulncheck@latest
-      - name: Install Lazarus
+      - name: Install Lazarus ${{ inputs.lazarus-version }}
         if: hashFiles('**/*.lpi') != ''
-        shell: bash
+        shell: pwsh
         run: |
-          choco install lazarus --yes --no-progress
-          echo "C:\lazarus" >> "$GITHUB_PATH"
+          $v = "${{ inputs.lazarus-version }}"
+          Invoke-WebRequest -Uri "https://sourceforge.net/projects/lazarus/files/Lazarus%20Windows%2064%20bits/Lazarus%20$v/lazarus-$v-fpc-3.2.2-win64.exe/download" -OutFile lazarus-setup.exe -UserAgent "curl"
+          Start-Process -Wait -FilePath .\lazarus-setup.exe -ArgumentList '/VERYSILENT', '/NORESTART', '/DIR=C:\lazarus'
+          Remove-Item lazarus-setup.exe
+          Add-Content $env:GITHUB_PATH 'C:\lazarus'
       - shell: bash
         run: make check RACE=-race COVER=-coverprofile=coverage.out
       - name: Coverage report
