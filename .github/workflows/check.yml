@@ -1,7 +1,7 @@
-# Reusable: `make check` on the three supported targets. A Postgres service is
-# available on the Linux runners at 127.0.0.1:5432 (user postgres, trust auth);
-# Windows runners cannot host Linux containers, so store-backed tests must not
-# assume one there.
+# Reusable: `make check` on the three supported targets, with the race detector
+# (every runner has a C compiler). A Postgres service is available on the Linux
+# runners at 127.0.0.1:5432 (user postgres, trust auth); Windows runners cannot
+# host Linux containers, so store-backed tests must not assume one there.
 name: check
 
 on:
@@ -42,7 +42,7 @@ jobs:
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
           go install golang.org/x/vuln/cmd/govulncheck@latest
-      - run: make check
+      - run: make check RACE=-race
 
   windows:
     runs-on: windows-2025
@@ -63,4 +63,4 @@ jobs:
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
           go install golang.org/x/vuln/cmd/govulncheck@latest
       - shell: bash
-        run: make check
+        run: make check RACE=-race
