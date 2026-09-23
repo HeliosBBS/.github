@@ -1,0 +1,72 @@
+name: Work item
+description: A unit of work in the shape the tooling expects.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The title is the summary. A security-sensitive item describes the work without the
+        exploit path; specifics go in a private security advisory.
+  - type: textarea
+    id: files
+    attributes:
+      label: Files
+      description: The files this touches, one per line.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Exact change
+      description: What changes, precisely enough that two people would make the same edit.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Why, and which feature (by ID) this serves.
+    validations:
+      required: true
+  - type: dropdown
+    id: security
+    attributes:
+      label: Security-sensitive
+      options:
+        - "no"
+        - "yes"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+      default: 2
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - feature
+        - bug
+        - spec
+        - infra
+        - docs
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plan
+      description: >-
+        The checklist the work follows, one task per box with its files, its test and its
+        routing tier. Filled by the planning step before any code; leave empty if planning
+        has not happened yet.
+      value: |
+        - [ ]

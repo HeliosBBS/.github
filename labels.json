@@ -1,0 +1,16 @@
+[
+  { "name": "P0", "color": "b60205", "description": "Drop everything" },
+  { "name": "P1", "color": "d93f0b", "description": "Next" },
+  { "name": "P2", "color": "fbca04", "description": "Normal" },
+  { "name": "P3", "color": "c2e0c6", "description": "When there is nothing else" },
+  { "name": "blocked", "color": "5319e7", "description": "Waiting on another item; see dependencies" },
+  { "name": "human-action-required", "color": "e99695", "description": "Needs the developer, not an agent" },
+  { "name": "claimed", "color": "0e8a16", "description": "An agent or session is working on it" },
+  { "name": "security-sensitive", "color": "000000", "description": "Hostile review; no exploit path in the issue" },
+  { "name": "unattended-loop", "color": "1d76db", "description": "Eligible for the unattended loop" },
+  { "name": "kind:feature", "color": "0052cc", "description": "New behaviour" },
+  { "name": "kind:bug", "color": "d73a4a", "description": "Something is wrong" },
+  { "name": "kind:spec", "color": "006b75", "description": "Brief or specification work" },
+  { "name": "kind:infra", "color": "bfd4f2", "description": "Tooling, CI, repository setup" },
+  { "name": "kind:docs", "color": "0075ca", "description": "Sysop guide or other documentation" }
+]

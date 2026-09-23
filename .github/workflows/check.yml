@@ -1,0 +1,66 @@
+# Reusable: `make check` on the three supported targets. A Postgres service is
+# available on the Linux runners at 127.0.0.1:5432 (user postgres, trust auth);
+# Windows runners cannot host Linux containers, so store-backed tests must not
+# assume one there.
+name: check
+
+on:
+  workflow_call:
+    inputs:
+      golangci-lint-version:
+        type: string
+        default: v2.12.2
+
+permissions: {}
+
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: hadv_test
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 2s --health-retries 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Install golangci-lint and govulncheck
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: make check
+
+  windows:
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Install make, golangci-lint and govulncheck
+        shell: bash
+        run: |
+          choco install make --yes --no-progress
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${{ inputs.golangci-lint-version }}
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+      - shell: bash
+        run: make check
