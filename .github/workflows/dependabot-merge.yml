@@ -1,0 +1,45 @@
+# Reusable: a Dependabot pull request is approved by the organisation's App and queued
+# to merge, so the merge queue lands it the moment its checks are green. A major
+# version bump, or one touching a developer-owned path, is labelled for the developer
+# instead. Called on pull_request_target with no checkout, so nothing from the pull
+# request runs here; the caller passes `secrets: inherit`.
+name: dependabot-merge
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app
+        with:
+          app-id: ${{ vars.PHAETHUSA_APP_ID }}
+          private-key: ${{ secrets.PHAETHUSA_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Approve and queue, or hand to the developer
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          reason=""
+          if [[ "$TITLE" =~ \ from\ ([0-9]+)[^\ ]*\ to\ ([0-9]+) ]] && [ "${BASH_REMATCH[1]}" != "${BASH_REMATCH[2]}" ]; then
+            reason="a major version bump"
+          fi
+          for path in $(gh pr view "$NUMBER" --repo "$REPO" --json files --jq '.files[].path'); do
+            case "$path" in .github/*|features/*|docs/spec/*|CONSTITUTION.md|LICENSE*|.claude/*) reason="a developer-owned path ($path)";; esac
+          done
+          if [ -n "$reason" ]; then
+            gh pr edit "$NUMBER" --repo "$REPO" --add-label human-action-required
+            gh pr comment "$NUMBER" --repo "$REPO" --body "Not merged automatically: $reason needs the developer's review."
+            exit 0
+          fi
+          gh pr review "$NUMBER" --repo "$REPO" --approve --body "A minor or patch update on paths with no owner: approved by the estate's App; the checks decide the merge."
+          gh pr merge "$NUMBER" --repo "$REPO" --merge --auto
